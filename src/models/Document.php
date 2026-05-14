@@ -66,16 +66,14 @@ class Document extends \hipanel\base\Model
             [['id', 'type_id', 'state_id', 'object_id', 'client_id', 'seller_id'], 'integer'],
             [['client', 'seller', 'title', 'description', 'class'], 'safe'],
             [['create_time', 'update_time'], 'safe'],
-            [['type', 'state', 'object_id', 'requisite_id', 'requisite'], 'safe'],
+            [['type', 'type_label', 'state', 'object_id', 'requisite_id', 'requisite', 'data_location', 'data_bill_id'], 'safe'],
             [['filename', 'sender', 'receiver', 'number'], 'string'],
 
             [['client', 'attachment'], 'safe', 'on' => ['create']],
             [
                 ['type', 'title', 'sender_id', 'receiver_id'], 'required',
                 'on' => ['create', 'update'],
-                'when' => function () {
-                    return Yii::$app->user->can('support');
-                },
+                'when' => fn(): bool => Yii::$app->user->can('support'),
             ],
             [['description', 'status_types'], 'safe', 'on' => ['create', 'update']],
             [['file_id', 'sender_id', 'receiver_id'], 'integer', 'on' => ['create', 'update']],
@@ -83,9 +81,7 @@ class Document extends \hipanel\base\Model
                 ['validity_start', 'validity_end'],
                 'safe',
                 'on' => ['create', 'update'],
-                'when' => function () {
-                    return Yii::$app->user->can('document.update');
-                },
+                'when' => fn(): bool => Yii::$app->user->can('document.update'),
             ],
             [
                 ['validity_end'],
@@ -94,9 +90,7 @@ class Document extends \hipanel\base\Model
                 'operator' => '>',
                 'on' => ['create', 'update'],
                 'enableClientValidation' => false,
-                'when' => function () {
-                    return Yii::$app->user->can('document.update');
-                },
+                'when' => fn(): bool => Yii::$app->user->can('document.update'),
             ],
             [['id'], 'required', 'on' => ['update', 'delete']],
             [['data'], JsonValidator::class],

@@ -22,6 +22,7 @@ use hipanel\modules\document\models\Document;
 use hipanel\modules\finance\actions\GenerateDocumentAction;
 use hiqdev\hiart\ResponseErrorException;
 use Yii;
+use yii\web\Response;
 
 /**
  * Class DocumentController.
@@ -48,9 +49,7 @@ class DocumentController extends CrudController
         return array_merge(parent::actions(), [
             'index' => [
                 'class' => IndexAction::class,
-                'data' => function () {
-                    return $this->getAdditionalData();
-                },
+                'data' => fn() => $this->getAdditionalData(),
                 'on beforePerform' => $this->getBeforePerformClosure(),
             ],
             'generate-document' => [
@@ -59,9 +58,7 @@ class DocumentController extends CrudController
             'create' => [
                 'class' => SmartCreateAction::class,
                 'success' => Yii::t('hipanel:document', 'Document was created'),
-                'data' => function () {
-                    return $this->getAdditionalData();
-                },
+                'data' => fn() => $this->getAdditionalData(),
             ],
             'view' => [
                 'class' => ViewAction::class,
@@ -71,17 +68,13 @@ class DocumentController extends CrudController
 
                     $action->getDataProvider()->query->details()->showDeleted();
                 },
-                'data' => function () {
-                    return $this->getAdditionalData();
-                },
+                'data' => fn() => $this->getAdditionalData(),
             ],
             'update' => [
                 'class' => SmartUpdateAction::class,
                 'success' => Yii::t('hipanel:document', 'Document was updated'),
                 'on beforeFetch' => $this->getBeforePerformClosure(),
-                'data' => function () {
-                    return $this->getAdditionalData();
-                },
+                'data' => fn() => $this->getAdditionalData(),
             ],
             'delete' => [
                 'class' => SmartDeleteAction::class,
@@ -94,23 +87,13 @@ class DocumentController extends CrudController
         ]);
     }
 
-    private function getAdditionalData()
+    private function getAdditionalData(): array
     {
         return [
             'states' => $this->getStateData(),
             'types' => $this->getTypeData(),
             'statuses' => $this->getStatusesData(),
         ];
-    }
-
-    private function getBeforePerformClosure()
-    {
-        return function ($event) {
-            /** @var ViewAction $action */
-            $action = $event->sender;
-
-            $action->getDataProvider()->query->details();
-        };
     }
 
     public function getStateData()
@@ -128,20 +111,51 @@ class DocumentController extends CrudController
         return $this->getRefs('status,document', 'hipanel:document');
     }
 
+    private function getBeforePerformClosure(): \Closure
+    {
+        return function ($event) {
+            /** @var ViewAction $action */
+            $action = $event->sender;
+
+            $action->getDataProvider()->query->details();
+        };
+    }
+
     public function actionArchive()
     {
         $response = Yii::$app->response;
         if (empty(Yii::$app->request->get())) {
             Yii::$app->getSession()->setFlash('error', Yii::t('hipanel:document', 'Filter document first'));
+
             return $this->redirect(Yii::$app->request->referrer);
         }
         try {
-            $data = Document::perform('export', array_shift(Yii::$app->request->get()), ['batch' => true]);
+            $get = Yii::$app->request->get();
+            $data = Document::perform('export', array_shift($get), ['batch' => true]);
         } catch (ResponseErrorException $e) {
             Yii::$app->getSession()->setFlash('error', Yii::t('hipanel:document', 'Error during creating archive'));
+
             return $this->redirect(Yii::$app->request->referrer);
         }
 
         $response->sendContentAsFile($data, 'archive.zip')->send();
+    }
+
+    public function actionGetCachedFile(string $uuid): Response
+    {
+        try {
+            $response = Document::perform('get-cached-file', ['uuid' => $uuid]);
+        } catch (ResponseErrorException $e) {
+            return $this->asJson([
+                'error' => $e->getMessage(),
+            ]);
+        }
+        $this->response->format = Response::FORMAT_RAW;
+
+        return $this->response->sendContentAsFile(
+            $response,
+            implode('.', [$uuid, 'pdf']),
+            ['inline' => true, 'mimeType' => 'application/pdf']
+        );
     }
 }
